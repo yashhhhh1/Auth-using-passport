@@ -7,7 +7,7 @@ const session = require("express-session");
 const passport = require("passport");
 const connectDB = require("./db/conn");
 const userdb = require("./model/userSchema");
-const OAuth2Strategy = require("passport-google-oauth2").Strategy;
+const GitHubStrategy = require("passport-github2").Strategy;
 
 const clientid = process.env.CLIENT_ID;
 const clientsecret = process.env.CLIENT_SECRET;
@@ -35,20 +35,22 @@ app.use(passport.initialize());
 app.use(passport.session());
 
 passport.use(
-  new OAuth2Strategy(
+  new GitHubStrategy(
     {
       clientID: clientid,
       clientSecret: clientsecret,
-      callbackURL: "/auth/google/callback",
-      scope: ["profile", "email"],
+      callbackURL: "/auth/github/callback",
+      scope: ["user:email"], // Adjusted scope for GitHub to include email
     },
     async (accessToken, refreshToken, profile, done) => {
       try {
+        //  user is exist
         let user = await userdb.findOne({ googleId: profile.id });
 
         if (!user) {
           user = new userdb({
-            googleId: profile.id,
+            // same data base store the data googleid and githubid
+            googleId: profile.id, // googleid stroe the github id here
             displayName: profile.displayName,
             email: profile.emails?.[0]?.value,
             image: profile.photos?.[0]?.value,
@@ -57,8 +59,9 @@ passport.use(
           await user.save();
         }
 
-        console.log(user);
-
+        // console.log("AccessToken:", accessToken);
+        // console.log("Profile:", profile);
+        // console.log(user);
         return done(null, user);
       } catch (error) {
         return done(error, null);
@@ -66,7 +69,6 @@ passport.use(
     }
   )
 );
-
 passport.serializeUser((user, done) => {
   done(null, user);
 });
@@ -75,13 +77,13 @@ passport.deserializeUser((user, done) => {
 });
 
 app.get(
-  "/auth/google",
-  passport.authenticate("google", { scope: ["profile", "email"] })
+  "/auth/github",
+  passport.authenticate("github", { scope: ["user:email"] })
 );
 
 app.get(
-  "/auth/google/callback",
-  passport.authenticate("google", {
+  "/auth/github/callback",
+  passport.authenticate("github", {
     successRedirect: "http://localhost:3000/dashboard/",
     failureRedirect: "http://localhost:3000/login",
   })
